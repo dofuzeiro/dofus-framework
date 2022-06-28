@@ -6,7 +6,7 @@ on:
 
 jobs:
 
-  linting:
+  analysis:
     runs-on: ubuntu-18.04
     steps:
       - name: Repository Checkout
@@ -20,3 +20,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --tests -- -D warnings
+
+      - name: Code coverage
+        uses: actions-rs/tarpaulin@v0.1.0
