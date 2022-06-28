@@ -6,17 +6,17 @@ on:
 
 jobs:
 
-  checkout:
-    name: checkout repository
-    runs-on: ubuntu-18.04
-    steps:
-      - uses: actions/checkout@v3
-
   linting:
     runs-on: ubuntu-18.04
     steps:
-      - run: rustup component add clippy
-      - uses: actions-rs/clippy-check@v1.0.7
+      - name: Repository Checkout
+        uses: actions/checkout@v3
+
+      - name: Install cargo clippy
+        run: rustup component add clippy
+
+      - name: Run cargo clippy
+        uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
