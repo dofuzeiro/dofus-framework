@@ -1,0 +1,13 @@
+name: CI-CD
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  linting:
+    name: linting rust code
+    runs-on: rust-latest
+    steps:
+      - name: clippy tool
+        run: cargo clippy
