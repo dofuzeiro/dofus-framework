@@ -13,9 +13,10 @@ jobs:
       - uses: actions/checkout@v3
 
   linting:
-    needs: checkout
-    name: linting rust code
     runs-on: ubuntu-18.04
     steps:
-      - name: clippy tool
-        uses: actions-rs/clippy-check@v1.0.7
+      - run: rustup component add clippy
+      - uses: actions-rs/clippy-check@v1.0.7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
