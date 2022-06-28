@@ -7,7 +7,8 @@ on:
 jobs:
   linting:
     name: linting rust code
-    runs-on: rust:latest
+    runs-on: ubuntu-18.04
+    container: rust:latest
     steps:
       - name: clippy tool
         run: cargo clippy
