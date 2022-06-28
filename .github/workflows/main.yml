@@ -6,10 +6,10 @@ on:
 
 jobs:
 
-  analysis:
+  linting:
     runs-on: ubuntu-18.04
     steps:
-      - name: Repository Checkout
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Install cargo clippy
@@ -23,3 +23,17 @@ jobs:
 
       - name: Code coverage
         uses: actions-rs/tarpaulin@v0.1.0
+
+  coverage:
+    needs: linting
+    runs-on: ubuntu-18.04
+    container:
+      image: xd009642/tarpaulin:develop-nightly
+      options: --security-opt seccomp=unconfined
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Generate code coverage
+        run: |
+          cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
