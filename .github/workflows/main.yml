@@ -5,10 +5,17 @@ on:
       - develop
 
 jobs:
+
+  checkout:
+    name: checkout repository
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v3
+
   linting:
+    needs: checkout
     name: linting rust code
     runs-on: ubuntu-18.04
-    container: rust:latest
     steps:
       - name: clippy tool
-        run: cargo clippy
+        uses: actions-rs/clippy-check@v1.0.7
