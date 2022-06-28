@@ -1,5 +1,3 @@
-mod person;
-
 #[cfg(test)]
 mod tests {
     #[test]
