@@ -8,6 +8,9 @@ jobs:
 
   linting:
     runs-on: ubuntu-18.04
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -19,10 +22,10 @@ jobs:
         run: cargo install clippy-sarif sarif-fmt
 
       - name: Run cargo clippy
-        uses: actions-rs/clippy-check@v1.0.7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --tests -- -D warnings | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+        run:
+          cargo clippy
+          --all-features
+          --message-format=json --tests -- -D warnings | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
         continue-on-error: true
 
       - name: Upload analysis results to GitHub
