@@ -8,9 +8,9 @@ jobs:
 
   linting:
     runs-on: ubuntu-18.04
-    permissions:
-      contents: read
-      security-events: write
+#    permissions:
+#      contents: read
+#      security-events: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
