@@ -15,11 +15,21 @@ jobs:
       - name: Install cargo clippy
         run: rustup component add clippy
 
+      - name: Install sarif components
+        run: cargo install clippy-sarif sarif-fmt
+
       - name: Run cargo clippy
         uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --tests -- -D warnings
+          args: --all-features --tests -- -D warnings | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+        continue-on-error: true
+
+      - name: Upload analysis results to GitHub
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          sarif_file: rust-clippy-results.sarif
+          wait-for-processing: true
 
   coverage:
     needs: linting
