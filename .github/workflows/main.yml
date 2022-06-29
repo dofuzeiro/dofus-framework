@@ -22,20 +22,19 @@ jobs:
         run: cargo install clippy-sarif sarif-fmt
 
       - name: Run cargo clippy
-        run:
-          cargo clippy
-          --all-features
-          --message-format=json --tests -- -D warnings | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+        uses: actions-rs/clippy-check@v1.0.7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features --message-format=json --tests -- -D warnings | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
         continue-on-error: true
 
       - name: Upload analysis results to GitHub
-        uses: github/codeql-action/upload-sarif@v1
+        uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: rust-clippy-results.sarif
           wait-for-processing: true
 
   coverage:
-    needs: linting
     runs-on: ubuntu-18.04
     container:
       image: xd009642/tarpaulin:develop-nightly
