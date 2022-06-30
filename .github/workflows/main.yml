@@ -34,7 +34,7 @@ jobs:
 #          sarif_file: rust-clippy-results.sarif
 #          wait-for-processing: true
 
-  coverage:
+  test-with-coverage:
     runs-on: ubuntu-18.04
     container:
       image: xd009642/tarpaulin:develop-nightly
@@ -54,12 +54,3 @@ jobs:
         with:
           name: code-coverage-report
           path: cobertura.xml
-
-  unit-test:
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Run cargo test
-        run: cargo test --all-features
