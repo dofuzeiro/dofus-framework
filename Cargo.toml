@@ -1,7 +1,10 @@
 [package]
 name = "dofus-framework"
+description = "This crate contains modules and functions that help sustain a dofus emulator binary application"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.61.0"
+license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
