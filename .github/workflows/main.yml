@@ -63,6 +63,10 @@ jobs:
           path: ./target/doc
 
   publish:
+    needs:
+      - documentation
+      - test-with-coverage
+      - linting
     runs-on: ubuntu-18.04
     #if: github.ref == 'refs/heads/main'
     steps:
