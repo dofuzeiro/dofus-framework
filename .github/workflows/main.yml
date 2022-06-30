@@ -54,3 +54,18 @@ jobs:
         with:
           name: code-coverage-report
           path: cobertura.xml
+
+  documentation:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Cargo doc
+        run: cargo doc --all-features
+
+      - name: Archive generated documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: project-documentation
+          path: ./target/doc
