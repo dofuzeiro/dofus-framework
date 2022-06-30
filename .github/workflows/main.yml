@@ -14,20 +14,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
       - name: Install cargo clippy
         run: rustup component add clippy
-
 #      - name: Install sarif components
 #        run: cargo install clippy-sarif sarif-fmt
-
       - name: Run cargo clippy
         uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --tests -- -D warnings
         #continue-on-error: true
-
 #      - name: Upload analysis results to GitHub
 #        uses: github/codeql-action/upload-sarif@v2
 #        with:
@@ -42,13 +38,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: '0.20.1'
           args: '-- --test-threads 1'
-
       - name: Archive code coverage results
         uses: actions/upload-artifact@v3
         with:
@@ -60,12 +54,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
       - name: Cargo doc
         run: cargo doc --all-features
-
       - name: Archive generated documentation
         uses: actions/upload-artifact@v3
         with:
           name: project-documentation
           path: ./target/doc
+
+  publish:
+    runs-on: ubuntu-18.04
+    #if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Setup rust toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+          override: true
+      - name: Publish crate to crates.io
+        uses: katyo/publish-crates@v1
+        with:
+          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
