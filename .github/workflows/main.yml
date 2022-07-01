@@ -55,7 +55,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Cargo doc
-        run: cargo doc --all-features
+        run: cargo doc --all-features --no-deps
       - name: Archive generated documentation
         uses: actions/upload-artifact@v3
         with:
