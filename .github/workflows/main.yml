@@ -62,7 +62,7 @@ jobs:
           name: project-documentation
           path: ./target/doc
 
-  publish:
+  release:
     needs:
       - documentation
       - test-with-coverage
@@ -72,12 +72,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Setup rust toolchain
-        uses: actions-rs/toolchain@v1.0.6
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
         with:
-          toolchain: stable
-          override: true
-      - name: Publish crate to crates.io
-        uses: katyo/publish-crates@v1
-        with:
-          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          node-version: 14
+      - name: Install dependencies
+        run: npm ci
+      - name: Setup semantic rust command
+        run: cargo install semantic-release-rust --version 1.0.0-alpha.8
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
