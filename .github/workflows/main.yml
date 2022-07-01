@@ -16,6 +16,7 @@ jobs:
         with:
           path: |
             **/target
+            **/Cargo.lock
           key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
       - name: Build and check current crate
         run: cargo build && cargo check
@@ -79,6 +80,7 @@ jobs:
         with:
           path: |
             **/target
+            **/Cargo.lock
           key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
       - name: Debug purposes
         run: ls -lR && pwd
