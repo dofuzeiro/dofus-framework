@@ -11,14 +11,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      - name: Build and check current crate
-        run: cargo build && cargo check
       - name: Cache target folder
-        id: cache-rust-crate
         uses: actions/cache@v3
         with:
-          path: target/
+          path: |
+            **/target
           key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+      - name: Build and check current crate
+        run: cargo build && cargo check
 
   linting:
     needs:
@@ -74,6 +74,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+      - name: Cache target folder
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/target
+          key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
       - name: Cargo doc
         run: cargo doc --all-features --no-deps
       - name: Archive generated documentation
