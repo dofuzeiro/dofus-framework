@@ -11,3 +11,5 @@ repository = "https://github.com/dofuzeiro/dofus-framework"
 
 [dependencies]
 tokio = { version = "1.19.2", features = ["full"] }
+thiserror = "1.0.31"
+anyhow = "1.0.58"
