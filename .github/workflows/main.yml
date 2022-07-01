@@ -80,6 +80,8 @@ jobs:
           path: |
             **/target
           key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+      - name: Debug purposes
+        run: ls -lR && pwd
       - name: Cargo doc
         run: cargo doc --all-features --no-deps
       - name: Archive generated documentation
