@@ -61,7 +61,7 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: '0.20.1'
-          args: '-- --test-threads 1'
+          args: '--skip-clean'
       - name: Archive code coverage results
         uses: actions/upload-artifact@v3
         with:
