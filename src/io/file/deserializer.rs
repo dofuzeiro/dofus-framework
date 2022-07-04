@@ -3,7 +3,7 @@ use std::fs;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::io::file::deserializer::DeserializationError::{InvalidInput, NotFound, NotImplemented};
+use crate::io::file::deserializer::DeserializationError::{InvalidInput, NotFound};
 
 #[derive(Debug, Error)]
 pub enum DeserializationError {
@@ -47,18 +47,20 @@ impl Deserializer for Format {
             }
             Format::Toml => {
                 toml::from_str(data).map_err(|_| InvalidInput(data.to_string(), "TOML"))
-            }
-            _ => Err(NotImplemented(format!("{:?}", self))),
+            } //_ => Err(NotImplemented(format!("{:?}", self))),
         }
     }
 }
 
-pub fn deserialize_from<E, T>(path: &str, deserializer: T) -> Result<E, DeserializationError>
+pub fn deserialize_from_file<E, T>(
+    file_path: &str,
+    deserializer: T,
+) -> Result<E, DeserializationError>
 where
     E: for<'a> Deserialize<'a>,
     T: Deserializer,
 {
-    fs::read_to_string(path)
-        .map_err(|_| NotFound(path.to_string()))
+    fs::read_to_string(file_path)
+        .map_err(|_| NotFound(file_path.to_string()))
         .map(|file_data| deserializer.deserialize(file_data))?
 }
