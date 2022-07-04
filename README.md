@@ -30,10 +30,10 @@ cargo test
 
 👤 **dofuzeiro**
 
-
 ## 🤝 Contributing
 
-Contributions, issues and feature requests are welcome!<br />Feel free to check [issues page](https://github.com/dofuzeiro/dofus-framework/issues). 
+Contributions, issues and feature requests are welcome!<br />Feel free to
+check [issues page](https://github.com/dofuzeiro/dofus-framework/issues).
 
 ## Show your support
 
