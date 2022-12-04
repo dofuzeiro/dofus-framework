@@ -1,5 +1,6 @@
-use serde::Deserialize;
 use std::fs;
+
+use serde::Deserialize;
 use thiserror::Error;
 
 use crate::io::file::deserializer::DeserializationError::{EmptyFile, IOError, InvalidInput};
@@ -49,7 +50,6 @@ impl Deserializer for Format {
 }
 
 fn deserialize_with_context<T, E>(
-    //    result: Result<T, E>,
     result: fn(&str) -> Result<T, E>,
     data: &str,
     format: &'static str,
