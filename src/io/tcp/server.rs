@@ -1,0 +1,126 @@
+use std::fmt::Formatter;
+use std::io;
+
+use thiserror::Error;
+use tokio::net::TcpListener;
+use tokio::select;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::{SendError, TrySendError};
+use tokio::task::JoinHandle;
+use tracing::{error, info};
+
+use crate::io::tcp::async_handler::AsyncHandler;
+use crate::io::tcp::client_handler::{TcpClientHandler, TcpClientMessage};
+use crate::io::tcp::server::TcpServerError::{AcceptClientError, BindingError, SendMessageError};
+use crate::io::tcp::server::TcpServerMessage::Stop;
+
+pub(crate) const BUFFER_SIZE: usize = 8;
+
+pub struct TcpServer {
+    pub(crate) address: String,
+    pub(crate) port: u16,
+}
+
+#[derive(Debug)]
+pub enum TcpServerMessage {
+    Stop,
+    Other,
+}
+
+impl std::fmt::Display for TcpServerMessage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Stop => {
+                write!(f, "Stop")
+            }
+            TcpServerMessage::Other => {
+                write!(f, "Other")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum TcpServerError {
+    #[error("Error while trying to bind to the given address {address:?}, due to: {source:?}")]
+    BindingError { address: String, source: io::Error },
+    #[error("Error while accepting a new tcp client, due to: {0}")]
+    AcceptClientError(io::Error),
+    #[error("Error while sending the following command to the server: {0}")]
+    SendMessageError(TcpServerMessage),
+}
+
+pub struct TcpServerHandle(mpsc::Sender<TcpServerMessage>);
+
+impl TcpServer {
+    pub fn start<OnConnectHandler, OnDataReceivedHandler>(
+        self,
+        on_connect: Option<&'static OnConnectHandler>,
+        on_data_received: &'static OnDataReceivedHandler,
+    ) -> (TcpServerHandle, JoinHandle<Result<(), TcpServerError>>)
+    where
+        OnConnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
+        OnDataReceivedHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
+    {
+        let (sender, receiver) = mpsc::channel(BUFFER_SIZE);
+        let join_handle = tokio::spawn(async move {
+            select! {
+                res = self.listen_to_clients(on_connect, on_data_received) => {
+                    info!("Server just stopped listening to clients");
+                    res?;
+                }
+                Some(value) = self.listen_to_messages(receiver) => {
+                    info!("Server just stopped listening to messages");
+                }
+            }
+            Ok::<(), TcpServerError>(())
+        });
+        (TcpServerHandle::new(sender), join_handle)
+    }
+
+    async fn listen_to_clients<OnConnectHandler, OnDataReceivedHandler>(
+        &self,
+        on_connect: Option<&'static OnConnectHandler>,
+        on_data_received: &'static OnDataReceivedHandler,
+    ) -> Result<(), TcpServerError>
+    where
+        OnConnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
+        OnDataReceivedHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
+    {
+        let binding = format!("{}:{}", self.address, self.port);
+        let mut listener = TcpListener::bind(&binding)
+            .await
+            .map_err(|e| BindingError {
+                source: e,
+                address: binding,
+            })?;
+        loop {
+            let (mut client_stream, _) =
+                listener.accept().await.map_err(|e| AcceptClientError(e))?;
+            info!("A new client has just connected");
+            TcpClientHandler::handle_client(client_stream, on_connect, on_data_received);
+        }
+    }
+
+    async fn listen_to_messages(
+        &self,
+        mut receiver: mpsc::Receiver<TcpServerMessage>,
+    ) -> Option<()> {
+        while let Some(msg) = receiver.recv().await {
+            return match msg {
+                Stop => Some(()),
+                TcpServerMessage::Other => None,
+            };
+        }
+        Some(())
+    }
+}
+
+impl TcpServerHandle {
+    pub fn new(sender: mpsc::Sender<TcpServerMessage>) -> Self {
+        TcpServerHandle(sender)
+    }
+    pub async fn stop(&self) -> Result<(), TcpServerError> {
+        self.0.try_send(Stop).map_err(|e| SendMessageError(Stop))
+    }
+}
