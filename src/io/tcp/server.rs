@@ -5,12 +5,11 @@ use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::select;
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::{SendError, TrySendError};
 use tokio::task::JoinHandle;
 use tracing::{error, info};
 
 use crate::io::tcp::async_handler::AsyncHandler;
-use crate::io::tcp::client_handler::{TcpClientHandler, TcpClientMessage};
+use crate::io::tcp::client_handler::TcpClientHandler;
 use crate::io::tcp::server::TcpServerError::{AcceptClientError, BindingError, SendMessageError};
 use crate::io::tcp::server::TcpServerMessage::Stop;
 
@@ -69,7 +68,7 @@ impl TcpServer {
                     info!("Server just stopped listening to clients");
                     res?;
                 }
-                Some(value) = self.listen_to_messages(receiver) => {
+                Some(_) = self.listen_to_messages(receiver) => {
                     info!("Server just stopped listening to messages");
                 }
             }
@@ -88,15 +87,14 @@ impl TcpServer {
         OnDataReceivedHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
     {
         let binding = format!("{}:{}", self.address, self.port);
-        let mut listener = TcpListener::bind(&binding)
+        let listener = TcpListener::bind(&binding)
             .await
             .map_err(|e| BindingError {
                 source: e,
                 address: binding,
             })?;
         loop {
-            let (mut client_stream, _) =
-                listener.accept().await.map_err(|e| AcceptClientError(e))?;
+            let (client_stream, _) = listener.accept().await.map_err(AcceptClientError)?;
             info!("A new client has just connected");
             TcpClientHandler::handle_client(client_stream, on_connect, on_data_received);
         }
@@ -106,13 +104,11 @@ impl TcpServer {
         &self,
         mut receiver: mpsc::Receiver<TcpServerMessage>,
     ) -> Option<()> {
-        while let Some(msg) = receiver.recv().await {
-            return match msg {
-                Stop => Some(()),
-                TcpServerMessage::Other => None,
-            };
+        match receiver.recv().await {
+            Some(Stop) => Some(()),
+            Some(TcpServerMessage::Other) => None,
+            None => Some(()),
         }
-        Some(())
     }
 }
 
@@ -121,6 +117,6 @@ impl TcpServerHandle {
         TcpServerHandle(sender)
     }
     pub async fn stop(&self) -> Result<(), TcpServerError> {
-        self.0.try_send(Stop).map_err(|e| SendMessageError(Stop))
+        self.0.try_send(Stop).map_err(|_| SendMessageError(Stop))
     }
 }
