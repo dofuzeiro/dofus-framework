@@ -89,7 +89,7 @@ impl TcpClientHandler {
                 Ok(bytes_read) if bytes_read == 0 => return Ok(()),
                 Ok(bytes_read) => {
                     let data_as_string = String::from_utf8(Vec::from(&buffer[0..bytes_read]))
-                        .map_err(|e| ClientParseError)?;
+                        .map_err(|_| ClientParseError)?;
                     on_data_received
                         .call(client_handle, Some(data_as_string))
                         .await
