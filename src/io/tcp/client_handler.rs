@@ -51,14 +51,16 @@ pub enum TcpClientHandlerError {
 }
 
 impl TcpClientHandler {
-    pub fn handle_client<C, C2>(
+    pub fn handle_client<OnConnectHandler, OnDataReceivedHandler, OnDisconnectHandler>(
         mut client_stream: TcpStream,
-        on_connect: Option<&'static C>,
-        on_data_received: &'static C2,
+        on_connect: Option<&'static OnConnectHandler>,
+        on_data_received: &'static OnDataReceivedHandler,
+        on_disconnect: &'static OnDisconnectHandler,
     ) -> JoinHandle<Result<(), TcpClientHandlerError>>
     where
-        C: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
-        C2: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
+        OnConnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
+        OnDataReceivedHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
+        OnDisconnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
     {
         let (sender, receiver) = mpsc::channel(BUFFER_SIZE);
         tokio::spawn(async move {
@@ -69,24 +71,29 @@ impl TcpClientHandler {
             }
             select! {
                 res = Self::listen_to_messages(receiver, writer) => {res?}
-                res = Self::listen_to_client(&client_handle, reader, on_data_received) => {res?}
+                res = Self::listen_to_client(&client_handle, reader, on_data_received, on_disconnect) => {res?}
             }
             Ok::<(), TcpClientHandlerError>(())
         })
     }
 
-    async fn listen_to_client<'a, C>(
+    async fn listen_to_client<'a, OnDataReceivedHandler, OnDisconnectHandler>(
         client_handle: &'a TcpClientHandle,
         mut reader: ReadHalf<'_>,
-        on_data_received: &'a C,
+        on_data_received: &'a OnDataReceivedHandler,
+        on_disconnect: &'a OnDisconnectHandler,
     ) -> Result<(), TcpClientHandlerError>
     where
-        C: AsyncHandler<'a> + Send + Sync + 'static,
+        OnDataReceivedHandler: AsyncHandler<'a> + Send + Sync + 'static,
+        OnDisconnectHandler: AsyncHandler<'a> + Send + Sync + 'static,
     {
         let mut buffer = [0u8; CLIENT_BUFFER_SIZE];
         loop {
             match reader.read(&mut buffer).await {
-                Ok(bytes_read) if bytes_read == 0 => return Ok(()),
+                Ok(bytes_read) if bytes_read == 0 => {
+                    on_disconnect.call(client_handle, None).await;
+                    return Ok(());
+                }
                 Ok(bytes_read) => {
                     let data_as_string = String::from_utf8(Vec::from(&buffer[0..bytes_read]))
                         .map_err(|_| ClientParseError)?;
