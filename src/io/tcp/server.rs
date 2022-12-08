@@ -52,19 +52,21 @@ pub enum TcpServerError {
 pub struct TcpServerHandle(mpsc::Sender<TcpServerMessage>);
 
 impl TcpServer {
-    pub fn start<OnConnectHandler, OnDataReceivedHandler>(
+    pub fn start<OnConnectHandler, OnDataReceivedHandler, OnDisconnectHandler>(
         self,
         on_connect: Option<&'static OnConnectHandler>,
         on_data_received: &'static OnDataReceivedHandler,
+        on_disconnect: &'static OnDisconnectHandler,
     ) -> (TcpServerHandle, JoinHandle<Result<(), TcpServerError>>)
     where
         OnConnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
         OnDataReceivedHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
+        OnDisconnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
     {
         let (sender, receiver) = mpsc::channel(BUFFER_SIZE);
         let join_handle = tokio::spawn(async move {
             select! {
-                res = self.listen_to_clients(on_connect, on_data_received) => {
+                res = self.listen_to_clients(on_connect, on_data_received, on_disconnect) => {
                     info!("Server just stopped listening to clients");
                     res?;
                 }
@@ -77,14 +79,16 @@ impl TcpServer {
         (TcpServerHandle::new(sender), join_handle)
     }
 
-    async fn listen_to_clients<OnConnectHandler, OnDataReceivedHandler>(
+    async fn listen_to_clients<OnConnectHandler, OnDataReceivedHandler, OnDisconnectHandler>(
         &self,
         on_connect: Option<&'static OnConnectHandler>,
         on_data_received: &'static OnDataReceivedHandler,
+        on_disconnect: &'static OnDisconnectHandler,
     ) -> Result<(), TcpServerError>
     where
         OnConnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
         OnDataReceivedHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
+        OnDisconnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
     {
         let binding = format!("{}:{}", self.address, self.port);
         let listener = TcpListener::bind(&binding)
@@ -96,7 +100,12 @@ impl TcpServer {
         loop {
             let (client_stream, _) = listener.accept().await.map_err(AcceptClientError)?;
             info!("A new client has just connected");
-            TcpClientHandler::handle_client(client_stream, on_connect, on_data_received);
+            TcpClientHandler::handle_client(
+                client_stream,
+                on_connect,
+                on_data_received,
+                on_disconnect,
+            );
         }
     }
 
