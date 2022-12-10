@@ -8,17 +8,14 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tracing::{error, info};
 
-use crate::io::tcp::async_handler::AsyncHandler;
-use crate::io::tcp::client_handler::TcpClientHandler;
+use crate::io::tcp::client_handler::TcpClientTask;
 use crate::io::tcp::server::TcpServerError::{AcceptClientError, BindingError, SendMessageError};
 use crate::io::tcp::server::TcpServerMessage::Stop;
+use crate::io::tcp::tcp_client_action::TcpClientAction;
 
 pub(crate) const BUFFER_SIZE: usize = 8;
 
-pub struct TcpServer {
-    pub(crate) address: String,
-    pub(crate) port: u16,
-}
+pub struct TcpServer {}
 
 #[derive(Debug)]
 pub enum TcpServerMessage {
@@ -52,45 +49,33 @@ pub enum TcpServerError {
 pub struct TcpServerHandle(mpsc::Sender<TcpServerMessage>);
 
 impl TcpServer {
-    pub fn start<OnConnectHandler, OnDataReceivedHandler, OnDisconnectHandler>(
-        self,
-        on_connect: Option<&'static OnConnectHandler>,
-        on_data_received: &'static OnDataReceivedHandler,
-        on_disconnect: &'static OnDisconnectHandler,
-    ) -> (TcpServerHandle, JoinHandle<Result<(), TcpServerError>>)
-    where
-        OnConnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
-        OnDataReceivedHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
-        OnDisconnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
-    {
-        let (sender, receiver) = mpsc::channel(BUFFER_SIZE);
+    pub fn start(
+        sender: mpsc::Sender<TcpClientAction>,
+        address: String,
+        port: u16,
+    ) -> (TcpServerHandle, JoinHandle<Result<(), TcpServerError>>) {
+        let (tcp_server_sender, receiver) = mpsc::channel(BUFFER_SIZE);
         let join_handle = tokio::spawn(async move {
             select! {
-                res = self.listen_to_clients(on_connect, on_data_received, on_disconnect) => {
+                res = Self::listen_to_clients(sender, address, port) => {
                     info!("Server just stopped listening to clients");
                     res?;
                 }
-                Some(_) = self.listen_to_messages(receiver) => {
+                Some(_) = Self::listen_to_messages(receiver) => {
                     info!("Server just stopped listening to messages");
                 }
             }
             Ok::<(), TcpServerError>(())
         });
-        (TcpServerHandle::new(sender), join_handle)
+        (TcpServerHandle::new(tcp_server_sender), join_handle)
     }
 
-    async fn listen_to_clients<OnConnectHandler, OnDataReceivedHandler, OnDisconnectHandler>(
-        &self,
-        on_connect: Option<&'static OnConnectHandler>,
-        on_data_received: &'static OnDataReceivedHandler,
-        on_disconnect: &'static OnDisconnectHandler,
-    ) -> Result<(), TcpServerError>
-    where
-        OnConnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
-        OnDataReceivedHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
-        OnDisconnectHandler: for<'a> AsyncHandler<'a> + Send + Sync + 'static,
-    {
-        let binding = format!("{}:{}", self.address, self.port);
+    async fn listen_to_clients(
+        sender: mpsc::Sender<TcpClientAction>,
+        address: String,
+        port: u16,
+    ) -> Result<(), TcpServerError> {
+        let binding = format!("{}:{}", address, port);
         let listener = TcpListener::bind(&binding)
             .await
             .map_err(|e| BindingError {
@@ -100,19 +85,11 @@ impl TcpServer {
         loop {
             let (client_stream, _) = listener.accept().await.map_err(AcceptClientError)?;
             info!("A new client has just connected");
-            TcpClientHandler::handle_client(
-                client_stream,
-                on_connect,
-                on_data_received,
-                on_disconnect,
-            );
+            TcpClientTask::handle_client(client_stream, sender.clone());
         }
     }
 
-    async fn listen_to_messages(
-        &self,
-        mut receiver: mpsc::Receiver<TcpServerMessage>,
-    ) -> Option<()> {
+    async fn listen_to_messages(mut receiver: mpsc::Receiver<TcpServerMessage>) -> Option<()> {
         match receiver.recv().await {
             Some(Stop) => Some(()),
             Some(TcpServerMessage::Other) => None,

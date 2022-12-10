@@ -3,7 +3,6 @@ pub mod io;
 
 #[cfg(test)]
 mod tests {
-
     use tokio::test;
 
     #[test]
