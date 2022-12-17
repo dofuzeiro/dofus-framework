@@ -34,11 +34,11 @@ impl TcpClientTaskHandle {
         TcpClientTaskHandle { sender }
     }
 
-    pub async fn send_data(&self, data: String) -> Result<(), TrySendError<TcpClientTaskMessage>> {
+    pub fn send_data(&self, data: String) -> Result<(), TrySendError<TcpClientTaskMessage>> {
         self.sender.try_send(TcpClientTaskMessage::Send { data })
     }
 
-    pub async fn stop(&self) -> Result<(), TrySendError<TcpClientTaskMessage>> {
+    pub fn stop(&self) -> Result<(), TrySendError<TcpClientTaskMessage>> {
         self.sender.try_send(TcpClientTaskMessage::Stop)
     }
 }
@@ -70,10 +70,9 @@ impl TcpClientTask {
         tokio::spawn(async move {
             let (reader, writer) = client_stream.split();
             select! {
-                res = Self::listen_to_messages(tcp_client_task_receiver, writer) => {res?}
-                res = Self::listen_to_client(reader, tcp_client_action_sender, TcpClientTaskHandle::new(tcp_client_task_sender)) => {res?}
+                res = Self::listen_to_messages(tcp_client_task_receiver, writer) => {res}
+                res = Self::listen_to_client(reader, tcp_client_action_sender, TcpClientTaskHandle::new(tcp_client_task_sender)) => {res}
             }
-            Ok::<(), TcpClientTaskError>(())
         })
     }
 

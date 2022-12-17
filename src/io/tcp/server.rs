@@ -1,3 +1,5 @@
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use std::fmt::Formatter;
 use std::io;
 
@@ -8,8 +10,8 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tracing::{error, info};
 
-use crate::io::tcp::client_handler::TcpClientTask;
-use crate::io::tcp::server::TcpServerError::{AcceptClientError, BindingError, SendMessageError};
+use crate::io::tcp::client_handler::{TcpClientTask, TcpClientTaskError};
+use crate::io::tcp::server::TcpServerError::{BindingError, SendMessageError};
 use crate::io::tcp::server::TcpServerMessage::Stop;
 use crate::io::tcp::tcp_client_action::TcpClientAction;
 
@@ -44,6 +46,10 @@ pub enum TcpServerError {
     AcceptClientError(io::Error),
     #[error("Error while sending the following command to the server: {0}")]
     SendMessageError(TcpServerMessage),
+    #[error("An error occurred while joining the client tasks")]
+    JoiningError,
+    #[error("A client task exited with the following error: {0}")]
+    ClientTaskError(TcpClientTaskError),
 }
 
 pub struct TcpServerHandle(mpsc::Sender<TcpServerMessage>);
@@ -54,27 +60,49 @@ impl TcpServer {
         address: String,
         port: u16,
     ) -> (TcpServerHandle, JoinHandle<Result<(), TcpServerError>>) {
-        let (tcp_server_sender, receiver) = mpsc::channel(BUFFER_SIZE);
+        let (tcp_server_sender, mut receiver) = mpsc::channel(BUFFER_SIZE);
         let join_handle = tokio::spawn(async move {
-            select! {
-                res = Self::listen_to_clients(sender, address, port) => {
-                    info!("Server just stopped listening to clients");
-                    res?;
-                }
-                Some(_) = Self::listen_to_messages(receiver) => {
-                    info!("Server just stopped listening to messages");
+            let (listener, mut client_tasks) = Self::bind_address(address, port).await?;
+            let mut result: Result<(), TcpServerError> = Ok(());
+            loop {
+                select! {
+                     accept_result = listener.accept() => { // Listen to new clients.
+                        let (stream, _socket) = match accept_result {
+                            Ok((stream, _socket)) => (stream, _socket),
+                            Err(msg) => { // Stop server immediately if accept returns an error
+                                result = Err(TcpServerError::AcceptClientError(msg));
+                                break
+                            }
+                        };
+                        client_tasks.push(TcpClientTask::handle_client(stream, sender.clone()));
+                        // Create a TcpClientTask (which spawns a new task, to handle the client connection)
+                    }
+                    Some(_finished_client_task) = client_tasks.next() => { // Listen to exiting tcp client tasks
+                        //TODO handle client task exiting
+                    }
+                    Some(TcpServerMessage::Stop) = receiver.recv() => { // Listen to tcpserver handle messages (e.g stop server)
+                        info!("Server just stopped listening to messages");
+                        break
+                    }
                 }
             }
-            Ok::<(), TcpServerError>(())
+            //TODO do we need to signal the client tasks to stop?
+            futures::future::join_all(client_tasks).await; // Wait for all child tasks to terminate
+            result
         });
         (TcpServerHandle::new(tcp_server_sender), join_handle)
     }
 
-    async fn listen_to_clients(
-        sender: mpsc::Sender<TcpClientAction>,
+    async fn bind_address(
         address: String,
         port: u16,
-    ) -> Result<(), TcpServerError> {
+    ) -> Result<
+        (
+            TcpListener,
+            FuturesUnordered<JoinHandle<Result<(), TcpClientTaskError>>>,
+        ),
+        TcpServerError,
+    > {
         let binding = format!("{}:{}", address, port);
         let listener = TcpListener::bind(&binding)
             .await
@@ -82,19 +110,9 @@ impl TcpServer {
                 source: e,
                 address: binding,
             })?;
-        loop {
-            let (client_stream, _) = listener.accept().await.map_err(AcceptClientError)?;
-            info!("A new client has just connected");
-            TcpClientTask::handle_client(client_stream, sender.clone());
-        }
-    }
-
-    async fn listen_to_messages(mut receiver: mpsc::Receiver<TcpServerMessage>) -> Option<()> {
-        match receiver.recv().await {
-            Some(Stop) => Some(()),
-            Some(TcpServerMessage::Other) => None,
-            None => Some(()),
-        }
+        let client_tasks: FuturesUnordered<JoinHandle<Result<(), TcpClientTaskError>>> =
+            FuturesUnordered::new();
+        Ok((listener, client_tasks))
     }
 }
 
@@ -102,7 +120,7 @@ impl TcpServerHandle {
     pub fn new(sender: mpsc::Sender<TcpServerMessage>) -> Self {
         TcpServerHandle(sender)
     }
-    pub async fn stop(&self) -> Result<(), TcpServerError> {
+    pub fn stop(&self) -> Result<(), TcpServerError> {
         self.0.try_send(Stop).map_err(|_| SendMessageError(Stop))
     }
 }
