@@ -1,6 +1,7 @@
 pub mod ddd;
 pub mod ext;
 pub mod io;
+pub use tokio;
 
 #[cfg(test)]
 mod tests {
