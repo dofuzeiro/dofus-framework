@@ -1,0 +1,24 @@
+[package]
+name = "dofus-framework"
+description = "This crate contains modules and functions that help sustain a dofus emulator binary application"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.61.0"
+license = "Apache-2.0"
+repository = "https://github.com/dofuzeiro/dofus-framework"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tracing = "0.1.37"
+tokio = { version = "1.19.2", features = ["full"] }
+thiserror = "1.0.31"
+anyhow = "1.0.58"
+serde = "1.0.137"
+serde_derive = "1.0.138"
+serde_json = "1.0.82"
+serde_yaml = "0.8.24"
+serde-xml-rs = "0.6.0"
+toml = "0.5.9"
+rand = "0.8.4"
+futures = "0.3.25"

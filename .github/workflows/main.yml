@@ -1,0 +1,122 @@
+name: CI-CD
+on:
+  push:
+    branches:
+      - '**' # matches every branch
+
+jobs:
+
+  cache:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Cache common dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            Cargo.lock
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+      - name: Build and check current crate
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: cargo build && cargo check
+
+  linting:
+    needs:
+      - cache
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Resolve cached dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            Cargo.lock
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+      - name: Install cargo clippy
+        run: rustup component add clippy
+      - name: Run cargo clippy
+        uses: actions-rs/clippy-check@v1.0.7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features --tests -- -D warnings
+
+  test-with-coverage:
+    needs:
+      - cache
+    runs-on: ubuntu-latest
+    container:
+      image: xd009642/tarpaulin:develop-nightly
+      options: --security-opt seccomp=unconfined
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Run cargo-tarpaulin
+        run: |
+          cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage-report
+          path: cobertura.xml
+
+  documentation:
+    needs:
+      - cache
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Resolve cached dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            Cargo.lock
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+      - name: Cargo doc
+        run: cargo doc --all-features --no-deps
+      - name: Archive generated documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: project-documentation
+          path: ./target/doc
+
+  release:
+    needs:
+      - documentation
+      - test-with-coverage
+      - linting
+    runs-on: ubuntu-18.04
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+      - name: Install dependencies
+        run: npm ci
+      - name: Setup semantic rust command
+        run: cargo install semantic-release-rust --version 1.0.0-alpha.8
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
