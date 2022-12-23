@@ -40,7 +40,7 @@ pub fn start<T: RepositoryFactory + Send + 'static, E: ActionHandler + Send + 's
                 }}
                 Some(RealmMessage::Stop) = realm_receiver.recv() => {break} // listen to messages of the realm handle
                 server_result = &mut server_join => {
-                    if let Err(_) = server_result {
+                    if server_result.is_err() {
                         error = Err(ServerError);
                         break;
                     }
