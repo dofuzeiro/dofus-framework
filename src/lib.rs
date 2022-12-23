@@ -1,4 +1,5 @@
 pub mod ddd;
+pub mod dofus;
 pub mod ext;
 pub mod io;
 pub use tokio;
