@@ -12,5 +12,4 @@ pub trait Repository<K: Identifiable, E: Entity<K>> {
     fn get_by_id(&self, key: &K) -> Option<&E>;
     fn get_all(&self) -> Vec<&E>;
     fn delete(&mut self, key: &K) -> Option<E>;
-    fn get<F: Fn(&E) -> bool>(&self, predicate: F) -> Vec<&E>;
 }

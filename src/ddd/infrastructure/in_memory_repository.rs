@@ -16,20 +16,10 @@ impl<K: Identifiable, E: Entity<K>> Repository<K, E> for InMemoryRepository<K, E
     }
 
     fn get_all(&self) -> Vec<&E> {
-        self.entities.iter().map(|(_, value)| value).collect()
+        self.entities.values().collect()
     }
 
     fn delete(&mut self, key: &K) -> Option<E> {
         self.entities.remove(key)
-    }
-
-    fn get<F: Fn(&E) -> bool>(&self, predicate: F) -> Vec<&E> {
-        self.entities
-            .iter()
-            .filter_map(|(_, value)| match predicate(value) {
-                true => Some(value),
-                false => None,
-            })
-            .collect()
     }
 }
